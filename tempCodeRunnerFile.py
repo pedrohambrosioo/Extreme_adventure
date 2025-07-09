@@ -1,2 +1,0 @@
-
-            # Colisão vindo de cima

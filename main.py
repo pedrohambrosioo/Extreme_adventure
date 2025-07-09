@@ -29,7 +29,28 @@ chao_y = HEIGHT - 50  # altura do "chão"
 scroll_x = 0
 jogador = Rect((100, HEIGHT - 100), (50, 50))
 area_nascimento = Rect(jogador.x - 50, jogador.y - 50, jogador.width + 100, jogador.height + 100)
-
+#fundo
+jogador_frames_direita = [
+    "psg1",
+    "psg2",
+    "psg4",
+    "psg5",
+    "psg6",
+    "psg7",
+    "psg8"] 
+jogador_frames_esquerda = [
+    "esp1",
+     "esp2",
+      "esp3",
+       "esp4",
+        "esp5",
+         "esp6",
+          "esp7"]  
+          
+frame_atual = 0
+tempo_entre_frames = 0.15  
+tempo_animacao = 0
+#plataforma
 def on_key_down(key):
     global tocando_som_pulo, vel_y, pulos_usados
     if key == keys.UP:
@@ -167,8 +188,10 @@ quit_button = Rect((WIDTH//2 - 100, HEIGHT//2 + 20), (200, 50))
 vol_up_button = Rect((WIDTH - 150, 30), (40, 40))
 vol_down_button = Rect((WIDTH - 200, 30), (40, 40))
 volume = 0.5
-jogador = Rect((100, HEIGHT - 100), (50, 50))
+jogador = Rect((100, HEIGHT - 100), (47, 47))
 velocidade = 5
+direcao = "direita"  # ou "esquerda"
+
 def draw():
     screen.clear()
     fundo_largura = 1024
@@ -204,12 +227,24 @@ def desenhar_menu():
 def desenhar_jogo():
     for bloco in mapa:
         bloco_visivel = bloco.move(-scroll_x, 0)
+        
         screen.blit("chao", (bloco_visivel.x, bloco_visivel.y))
     for plataforma in plataformas:
         p_visivel = plataforma.move(-scroll_x, 0)
         screen.blit("plataforma", (p_visivel.x, p_visivel.y))
+
+
+        # Desenhar o personagem com sprite
+    if direcao == "direita":
+        frame = jogador_frames_direita[frame_atual]
+    else:
+        frame = jogador_frames_esquerda[frame_atual]
+
     jogador_visivel = jogador.move(-scroll_x, 0)
-    screen.draw.filled_rect(jogador_visivel, "blue")
+    screen.blit(frame, (jogador_visivel.x, jogador_visivel.y))
+
+
+    
     for p in passaros:
         p_visivel = p.move(-scroll_x, 0)
         screen.draw.filled_rect(p_visivel, "red")
@@ -241,8 +276,29 @@ def on_mouse_down(pos):
 distancia_interacao = 100
 planta_perto = None
 def update():
-    global tocando_som_pulo, vel_y, pulos_usados, planta_perto, no_chao, scroll_x, tela_atual
-    
+    global direcao
+    global jogador_frames
+    vel_x = 0
+    if vel_x > 0:
+        direcao = "direita"
+    elif vel_x < 0:
+        direcao = "esquerda"
+    if direcao == "direita":
+        jogador_frames = jogador_frames_direita
+    else:
+        jogador_frames = jogador_frames_esquerda
+
+
+
+    global tempo_animacao, frame_atual
+    global tocando_som_pulo, vel_y, pulos_usados, planta_perto, no_chao, scroll_x, tela_atual, pontos_coletados
+
+    # Atualiza animação do jogador
+    tempo_animacao += 1 / 60  # considerando 60 FPS
+    if tempo_animacao >= tempo_entre_frames:
+        frame_atual = (frame_atual + 1) % len(jogador_frames)
+        tempo_animacao = 0
+
     planta_perto = None
     for planta in plantas:
         distancia = abs(planta.centerx - jogador.centerx)
@@ -250,27 +306,42 @@ def update():
         if distancia < distancia_interacao and distancia_vertical < 50:
             planta_perto = planta
             break
+
     if tela_atual != "jogo":
         if tocando_som_pulo:
             som_pulo.stop()
             tocando_som_pulo = False
         return
+
+    # Movimento horizontal
     vel_x = 0
     if keyboard.right:
         vel_x = velocidade
+        direcao = "direita"
     elif keyboard.left:
         vel_x = -velocidade
+        direcao = "esquerda"
+    else:
+        vel_x = 0
+        direcao = "direita"
+        
+
     vel_x = verificar_colisao_horizontal(jogador, mapa + plataformas, vel_x)
     jogador.x += vel_x
+
     if jogador.left < 0:
         jogador.left = 0
     if jogador.right > len(mapa) * 50:
         jogador.right = len(mapa) * 50
+
+    # Movimento vertical e pulo
     vel_y += gravidade
     vel_y, no_chao = verificar_colisao_vertical(jogador, mapa + plataformas, vel_y)
     jogador.y += vel_y
+
     if no_chao:
         pulos_usados = 0
+
     pulo_forca = -10
     max_pulos = 2
     if keyboard.up:
@@ -287,15 +358,18 @@ def update():
             tocando_som_pulo = False
 
     vel_y, no_chao = verificar_colisao_vertical(jogador, mapa + plataformas, vel_y)
-
     if no_chao:
         pulos_usados = 0
+
+    # Scroll da tela
     margem = WIDTH // 2
     if jogador.centerx - scroll_x > WIDTH - margem:
         scroll_x = jogador.centerx - (WIDTH - margem)
     elif jogador.centerx - scroll_x < margem:
         scroll_x = jogador.centerx - margem
     scroll_x = max(0, scroll_x)
+
+    # Verifica colisões com inimigos
     for p in passaros:
         p.x += velocidade_passaros
         if jogador.colliderect(p):
@@ -303,6 +377,7 @@ def update():
             pygame.mixer.music.load("sounds/game_over.mp3")
             pygame.mixer.music.set_volume(volume)
             pygame.mixer.music.play()
+
     for planta in plantas:
         if jogador.colliderect(planta):
             tela_atual = "gameover"
@@ -310,7 +385,8 @@ def update():
             pygame.mixer.music.load("sounds/game_over.mp3")
             pygame.mixer.music.set_volume(volume)
             pygame.mixer.music.play()
-    global pontos_coletados
+
+    # Coleta de pontos
     for ponto in pontos[:]:
         if jogador.colliderect(ponto):
             pontos.remove(ponto)
